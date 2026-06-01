@@ -1,0 +1,130 @@
+/* Reusable Component Styles */
+
+/* Map page responsive split view - always single column */
+.split-view {
+  /* Always single column for better map display */
+  grid-template-columns: 1fr !important;
+  gap: 1.5rem !important;
+  
+  /* Mobile phones - 640px and below */
+  @media (max-width: 640px) {
+    gap: 1rem !important;
+    min-height: 40vh !important;
+  }
+  
+  /* Tablets - 768px and below */
+  @media (max-width: 768px) {
+    gap: 1.25rem !important;
+    min-height: 50vh !important;
+  }
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+  .container {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+  
+  .card {
+    padding: 1rem !important;
+    margin-bottom: 1rem !important;
+  }
+  
+  /* Adjust control layouts for mobile */
+  .map-controls {
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+  
+  /* Make dropdowns full width on mobile */
+  .map-controls select {
+    min-width: 100% !important;
+  }
+  
+  /* Route grid responsive */
+  .route-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+  
+  /* Route card mobile adjustments */
+  .route-card {
+    padding: 1rem !important;
+  }
+  
+  /* Route details grid on mobile */
+  .route-details-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Map container mobile adjustments */
+  .map-container {
+    height: 40vh !important;
+  }
+}
+
+.btn-primary {
+  background-color: #92400e;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  background-color: #78350f;
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background-color: #f1f5f9;
+  color: #334155;
+  padding: 0.75rem 1.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  background-color: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+.card {
+  background: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  transition: box-shadow 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.input-field {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: #92400e;
+  box-shadow: 0 0 0 3px rgba(146, 64, 14, 0.1);
+}

@@ -1,0 +1,113 @@
+.routeCard {
+  display: block;
+  background: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.2s;
+  text-decoration: none;
+  color: inherit;
+}
+
+.routeCard:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.imageContainer {
+  position: relative;
+  height: 12rem;
+  overflow: hidden;
+  border-radius: 0.75rem 0.75rem 0 0;
+}
+
+.routeImage {
+  border-radius: 0.75rem 0.75rem 0 0;
+}
+
+.completedBadge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: #22c55e;
+  color: white;
+  border-radius: 50%;
+  padding: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.difficultyBadge {
+  position: absolute;
+  bottom: 0.5rem;
+  left: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.difficultyEasy {
+  color: #15803d;
+  background-color: #dcfce7;
+}
+
+.difficultyModerate {
+  color: #b45309;
+  background-color: #fef3c7;
+}
+
+.difficultyChallenging {
+  color: #dc2626;
+  background-color: #fee2e2;
+}
+
+.routeContent {
+  padding: 1rem;
+}
+
+.routeName {
+  font-weight: 600;
+  font-size: 1.125rem;
+  margin-bottom: 0.5rem;
+}
+
+.routeDescription {
+  color: #64748b;
+  font-size: 0.875rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.routeStats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.statGroup {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.stat {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.pubStat {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.routeRegion {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
