@@ -18,6 +18,7 @@ type RouteRow = {
 	pub_label: string | null;
 	pub_lat: number | null;
 	pub_lon: number | null;
+	pub_website: string | null;
 };
 
 export default function RoutePage() {
@@ -43,7 +44,7 @@ export default function RoutePage() {
 			const [{ data }, { data: { user } }] = await Promise.all([
 				supabase
 					.from("routes")
-					.select("id, route_code, name, geometry_geojson, story, safety_note, distance_km, duration_hours, difficulty, pub_label, pub_lat, pub_lon")
+					.select("id, route_code, name, geometry_geojson, story, safety_note, distance_km, duration_hours, difficulty, pub_label, pub_lat, pub_lon, pub_website")
 					.eq("route_code", routeCode)
 					.maybeSingle(),
 				supabase.auth.getUser(),
@@ -176,7 +177,11 @@ export default function RoutePage() {
 					{/* eslint-disable-next-line @next/next/no-img-element */}
 					<img src="/PintBeer.png" alt="" width={28} height={28} />
 					<div>
-						<span style={{ fontWeight: 700, color: "#92400e" }}>{route.pub_label}</span>
+						{route.pub_website ? (
+							<a href={route.pub_website} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 700, color: "#92400e", textDecoration: "underline" }}>{route.pub_label}</a>
+						) : (
+							<span style={{ fontWeight: 700, color: "#92400e" }}>{route.pub_label}</span>
+						)}
 						{route.pub_lat != null && route.pub_lon != null && (
 							<span style={{ marginLeft: "0.75rem", fontSize: "0.8rem", color: "#78350f" }}>
 								{route.pub_lat.toFixed(5)}, {route.pub_lon.toFixed(5)}
