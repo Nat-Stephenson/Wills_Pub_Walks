@@ -1,79 +1,38 @@
 .routeCard {
   display: block;
-  background: white;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 0.75rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: box-shadow 0.2s;
+  padding: 1.25rem;
   text-decoration: none;
   color: inherit;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
 .routeCard:hover {
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.imageContainer {
-  position: relative;
-  height: 12rem;
-  overflow: hidden;
-  border-radius: 0.75rem 0.75rem 0 0;
-}
-
-.routeImage {
-  border-radius: 0.75rem 0.75rem 0 0;
-}
-
-.completedBadge {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  background: #22c55e;
-  color: white;
-  border-radius: 50%;
-  padding: 0.25rem;
-  font-size: 0.875rem;
-}
-
-.difficultyBadge {
-  position: absolute;
-  bottom: 0.5rem;
-  left: 0.5rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.difficultyEasy {
-  color: #15803d;
-  background-color: #dcfce7;
-}
-
-.difficultyModerate {
-  color: #b45309;
-  background-color: #fef3c7;
-}
-
-.difficultyChallenging {
-  color: #dc2626;
-  background-color: #fee2e2;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
 }
 
 .routeContent {
-  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .routeName {
+  font-size: 1.1rem;
   font-weight: 600;
-  font-size: 1.125rem;
-  margin-bottom: 0.5rem;
+  color: #1e293b;
+  margin: 0;
 }
 
 .routeDescription {
+  font-size: 0.9rem;
   color: #64748b;
-  font-size: 0.875rem;
-  margin-bottom: 0.75rem;
-  line-height: 1.4;
+  line-height: 1.5;
+  margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -84,30 +43,52 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.875rem;
-  color: #64748b;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
 }
 
 .statGroup {
   display: flex;
+  gap: 0.75rem;
   align-items: center;
-  gap: 1rem;
 }
 
 .stat {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: #475569;
 }
 
-.pubStat {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.routeRegion {
-  margin-top: 0.5rem;
+.difficultyBadge {
   font-size: 0.75rem;
-  color: #94a3b8;
+  font-weight: 600;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.difficultyEasy {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.difficultyMid {
+  background-color: #fef9c3;
+  color: #854d0e;
+}
+
+.difficultyHard {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.completedBadge {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #166534;
+  background-color: #dcfce7;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  align-self: flex-start;
 }
