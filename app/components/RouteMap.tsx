@@ -22,15 +22,17 @@ export function RouteMap({ geojson, pubLat, pubLon, pubLabel }: RouteMapProps) {
 
 		Promise.all([import("leaflet"), import("leaflet/dist/leaflet.css" as any)]).then(([L]) => {
 			if (!containerRef.current) return;
-			const map = L.default.map(container, { zoomAnimation: false });
+			const map = L.default.map(container, { zoomAnimation: false, maxZoom: 19 });
 			mapRef.current = map;
 
 			L.default.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 				attribution: "© OpenStreetMap contributors",
+				maxZoom: 19,
+				detectRetina: true,
 			}).addTo(map);
 
 			const layer = L.default.geoJSON(geojson, {
-				style: { color: "#2563eb", weight: 4 },
+				style: { color: "#2563eb", weight: 5 },
 			}).addTo(map);
 
 			// Pub marker using PintBeer.png
@@ -48,7 +50,7 @@ export function RouteMap({ geojson, pubLat, pubLon, pubLabel }: RouteMapProps) {
 
 			const bounds = layer.getBounds();
 			if (bounds.isValid()) {
-				map.fitBounds(bounds, { padding: [20, 20], animate: false });
+				map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15, animate: false });
 			}
 		});
 
@@ -61,5 +63,13 @@ export function RouteMap({ geojson, pubLat, pubLon, pubLabel }: RouteMapProps) {
 		};
 	}, [geojson, pubLat, pubLon, pubLabel]);
 
-	return <div ref={containerRef} style={{ height: 400, width: "100%" }} />;
+	return (
+		<div
+			ref={containerRef}
+			style={{
+				height: "clamp(280px, 50vw, 480px)",
+				width: "100%",
+			}}
+		/>
+	);
 }
