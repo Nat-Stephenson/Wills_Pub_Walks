@@ -1,0 +1,73 @@
+.container {
+  min-height: 100vh;
+  background-color: #f8fafc;
+  position: relative;
+}
+
+.backgroundPattern {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  opacity: 0.05;
+  pointer-events: none;
+  background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60"><g fill-opacity="0.1"><circle fill="%23000" cx="30" cy="30" r="2"/></g></svg>');
+  background-repeat: repeat;
+}
+
+.header {
+  background: white;
+  border-bottom: 2px solid #16a34a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.headerContent {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  transition: opacity 0.2s ease;
+}
+
+.logo:hover {
+  opacity: 0.8;
+}
+
+.navbarLogo {
+  height: auto;
+  max-height: 50px;
+  width: auto;
+  max-width: 200px;
+}
+
+/* Responsive navbar logo */
+@media (max-width: 768px) {
+  .navbarLogo {
+    max-width: 150px;
+    max-height: 38px;
+  }
+  
+  .headerContent {
+    padding: 0.5rem 0.75rem;
+  }
+}
+
+.mainContent {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+  position: relative;
+  z-index: 10;
+}
