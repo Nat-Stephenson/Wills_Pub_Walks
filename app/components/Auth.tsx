@@ -3,8 +3,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 
-const supabase = supabaseBrowser()
-
 export default function Auth() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -17,6 +15,7 @@ export default function Auth() {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    const supabase = supabaseBrowser()
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: { shouldCreateUser: true },
@@ -30,6 +29,7 @@ export default function Auth() {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    const supabase = supabaseBrowser()
     const { error } = await supabase.auth.verifyOtp({
       email,
       token: code.trim(),
