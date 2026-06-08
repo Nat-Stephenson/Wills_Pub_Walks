@@ -59,7 +59,7 @@ function MapInner() {
 		// Leaflet must be imported dynamically (SSR-safe)
 		import("leaflet").then((L) => {
 			if (destroyed || !containerRef.current) return;
-			const map = L.default.map(containerRef.current, { zoomAnimation: false }).setView([52.5, -1.9], 8);
+			const map = L.default.map(containerRef.current, { zoomAnimation: false }).setView([52.5, -1.9], 10);
 			mapRef.current = map;
 
 			L.default
@@ -100,14 +100,15 @@ function MapInner() {
 								`<br/><a href="/routes/${route.route_code}" style="color:#92400e;font-weight:600;">View route →</a>`,
 						);
 
+					const treeIcon = L.default.icon({
+						iconUrl: "/Tree.png",
+						iconSize: [36, 36],
+						iconAnchor: [18, 36],
+						popupAnchor: [0, -38],
+					});
+
 					L.default
-						.circleMarker(center, {
-							radius: 8,
-							color: isFocused ? "#1d4ed8" : "#92400e",
-							fillColor: isFocused ? "#1d4ed8" : "#92400e",
-							fillOpacity: 1,
-							weight: 2,
-						})
+						.marker(center, { icon: treeIcon })
 						.addTo(map)
 						.bindPopup(popup);
 				}
