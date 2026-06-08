@@ -26,7 +26,7 @@ export default function HomePage() {
 				supabase.auth.getUser(),
 				supabase
 					.from("routes")
-						.select("id, route_code, name, distance_km, duration_hours, story, difficulty, is_published, pub_label, pub_lat, pub_lon")
+						.select("id, route_code, name, distance_km, duration_hours, story, difficulty, is_published, pub_label, pub_lat, pub_lon, pub_website")
 					.eq("is_published", true)
 					.order("name", { ascending: true }),
 			]);
