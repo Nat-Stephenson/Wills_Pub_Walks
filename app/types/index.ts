@@ -16,6 +16,7 @@ export type Route = {
 	pub_label: string | null;
 	pub_lat: number | null;
 	pub_lon: number | null;
+	pub_website: string | null;
 	isCompleted?: boolean;
 	isFavourited?: boolean;
 };
