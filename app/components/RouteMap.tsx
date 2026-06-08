@@ -4,9 +4,12 @@ import { useEffect, useRef } from "react";
 
 interface RouteMapProps {
 	geojson: any;
+	pubLat?: number | null;
+	pubLon?: number | null;
+	pubLabel?: string | null;
 }
 
-export function RouteMap({ geojson }: RouteMapProps) {
+export function RouteMap({ geojson, pubLat, pubLon, pubLabel }: RouteMapProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const mapRef = useRef<any>(null);
 	const initialisedRef = useRef(false);
@@ -30,6 +33,19 @@ export function RouteMap({ geojson }: RouteMapProps) {
 				style: { color: "#2563eb", weight: 4 },
 			}).addTo(map);
 
+			// Pub marker using PintBeer.png
+			if (pubLat != null && pubLon != null) {
+				const pubIcon = L.default.icon({
+					iconUrl: "/PintBeer.png",
+					iconSize: [36, 36],
+					iconAnchor: [18, 36],
+					popupAnchor: [0, -38],
+				});
+				L.default.marker([pubLat, pubLon], { icon: pubIcon })
+					.addTo(map)
+					.bindPopup(`<strong>${pubLabel ?? "The Pub"}</strong><br/>${pubLat.toFixed(5)}, ${pubLon.toFixed(5)}`);
+			}
+
 			const bounds = layer.getBounds();
 			if (bounds.isValid()) {
 				map.fitBounds(bounds, { padding: [20, 20], animate: false });
@@ -43,7 +59,7 @@ export function RouteMap({ geojson }: RouteMapProps) {
 				mapRef.current = null;
 			}
 		};
-	}, [geojson]);
+	}, [geojson, pubLat, pubLon, pubLabel]);
 
 	return <div ref={containerRef} style={{ height: 400, width: "100%" }} />;
 }
