@@ -175,11 +175,19 @@ function MapInner() {
 				iconAnchor: [16, 32],
 				popupAnchor: [0, -34],
 			});
-			const treeIcon = L.default.icon({
-				iconUrl: "/Tree.png",
-				iconSize: [36, 36],
-				iconAnchor: [18, 36],
-				popupAnchor: [0, -38],
+			const routeIcon = L.default.divIcon({
+				className: "",
+				html: `<div style="
+					width: 28px; height: 28px;
+					background: #4e7a3a;
+					border: 3px solid #fff;
+					border-radius: 50% 50% 50% 0;
+					transform: rotate(-45deg);
+					box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+				"></div>`,
+				iconSize: [28, 28],
+				iconAnchor: [14, 28],
+				popupAnchor: [0, -30],
 			});
 
 			routes.forEach((route) => {
@@ -211,7 +219,7 @@ function MapInner() {
 									`<br/><a href="/routes/${route.route_code}" style="color:#92400e;font-weight:600;">View route →</a>`,
 							);
 
-						L.default.marker(center, { icon: treeIcon }).addTo(map).bindPopup(popup);
+						L.default.marker(center, { icon: routeIcon }).addTo(map).bindPopup(popup);
 					}
 				}
 
