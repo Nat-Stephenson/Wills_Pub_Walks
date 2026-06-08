@@ -13,6 +13,10 @@ type RouteRow = {
 	distance_km: number | null;
 	duration_hours: number | null;
 	difficulty: number | null;
+	pub_label: string | null;
+	pub_lat: number | null;
+	pub_lon: number | null;
+	pub_website: string | null;
 };
 
 type NavState = {
@@ -133,7 +137,7 @@ function MapInner() {
 		const supabase = supabaseBrowser();
 		supabase
 			.from("routes")
-			.select("id, route_code, name, geometry_geojson, distance_km, duration_hours, difficulty")
+			.select("id, route_code, name, geometry_geojson, distance_km, duration_hours, difficulty, pub_label, pub_lat, pub_lon, pub_website")
 			.eq("is_published", true)
 			.then(({ data, error }) => {
 				if (error) setError(error.message);
@@ -165,46 +169,67 @@ function MapInner() {
 			const allBounds: InstanceType<typeof L.default.LatLngBounds>[] = [];
 			let focusedRouteBounds: InstanceType<typeof L.default.LatLngBounds> | null = null;
 
-			routes.forEach((route) => {
-				if (!route.geometry_geojson) return;
+			const pubIcon = L.default.icon({
+				iconUrl: "/PintBeer.png",
+				iconSize: [32, 32],
+				iconAnchor: [16, 32],
+				popupAnchor: [0, -34],
+			});
+			const treeIcon = L.default.icon({
+				iconUrl: "/Tree.png",
+				iconSize: [36, 36],
+				iconAnchor: [18, 36],
+				popupAnchor: [0, -38],
+			});
 
+			routes.forEach((route) => {
 				const isFocused = focusRouteCode && route.route_code === focusRouteCode;
 
-				const layer = L.default
-					.geoJSON(route.geometry_geojson, {
-						style: { color: isFocused ? "#1d4ed8" : "#92400e", weight: isFocused ? 6 : 4, opacity: 0.9 },
-					})
-					.addTo(map);
+				// Draw route line if geometry exists
+				if (route.geometry_geojson) {
+					const layer = L.default
+						.geoJSON(route.geometry_geojson, {
+							style: { color: isFocused ? "#1d4ed8" : "#92400e", weight: isFocused ? 6 : 4, opacity: 0.9 },
+						})
+						.addTo(map);
 
-				const bounds = layer.getBounds();
-				if (bounds.isValid()) {
-					allBounds.push(bounds);
-					if (isFocused) focusedRouteBounds = bounds;
+					const bounds = layer.getBounds();
+					if (bounds.isValid()) {
+						allBounds.push(bounds);
+						if (isFocused) focusedRouteBounds = bounds;
 
-					// Clickable circle marker at the route centre
-					const center = bounds.getCenter();
-					const difficultyLabel = route.difficulty ? `Grade ${route.difficulty}` : "";
-					const popup = L.default
-						.popup()
-						.setContent(
-							`<strong>${route.name}</strong><br/>` +
-								(route.distance_km ? `📏 ${route.distance_km} km&nbsp;&nbsp;` : "") +
-								(route.duration_hours ? `⏱️ ${route.duration_hours} hrs&nbsp;&nbsp;` : "") +
-								(difficultyLabel ? `🏔️ ${difficultyLabel}` : "") +
-								`<br/><a href="/routes/${route.route_code}" style="color:#92400e;font-weight:600;">View route →</a>`,
-						);
+						// Tree marker at route centre
+						const center = bounds.getCenter();
+						const difficultyLabel = route.difficulty ? `Grade ${route.difficulty}` : "";
+						const popup = L.default
+							.popup()
+							.setContent(
+								`<strong>${route.name}</strong><br/>` +
+									(route.distance_km ? `📏 ${route.distance_km} km&nbsp;&nbsp;` : "") +
+									(route.duration_hours ? `⏱️ ${route.duration_hours} hrs&nbsp;&nbsp;` : "") +
+									(difficultyLabel ? `🏔️ ${difficultyLabel}` : "") +
+									`<br/><a href="/routes/${route.route_code}" style="color:#92400e;font-weight:600;">View route →</a>`,
+							);
 
-					const treeIcon = L.default.icon({
-						iconUrl: "/Tree.png",
-						iconSize: [36, 36],
-						iconAnchor: [18, 36],
-						popupAnchor: [0, -38],
-					});
+						L.default.marker(center, { icon: treeIcon }).addTo(map).bindPopup(popup);
+					}
+				}
 
+				// Pub marker — shown for every route that has pub coordinates
+				if (route.pub_lat != null && route.pub_lon != null) {
+					const pubName = route.pub_label ?? "The Pub";
+					const mapsSearchUrl = `https://www.google.com/maps/search/${encodeURIComponent(pubName + " pub")}/@${route.pub_lat},${route.pub_lon},17z`;
+					const pubPopupContent =
+						`<strong>${route.pub_website
+							? `<a href="${route.pub_website}" target="_blank" rel="noopener noreferrer" style="color:#92400e">${pubName}</a>`
+							: pubName
+						}</strong>` +
+						`<br/><small style="color:#555">${route.name}</small>` +
+						`<br/><a href="${mapsSearchUrl}" target="_blank" rel="noopener noreferrer" style="font-size:0.8rem;color:#1d4ed8">📍 Find on Google Maps</a>`;
 					L.default
-						.marker(center, { icon: treeIcon })
+						.marker([route.pub_lat, route.pub_lon], { icon: pubIcon })
 						.addTo(map)
-						.bindPopup(popup);
+						.bindPopup(pubPopupContent);
 				}
 			});
 
