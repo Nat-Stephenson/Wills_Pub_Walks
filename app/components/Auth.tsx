@@ -55,7 +55,7 @@ export default function Auth() {
         <form onSubmit={handleVerifyCode} style={{ display: 'flex', flexDirection: 'column', gap: '15px', padding: '30px', border: '1px solid #e2e8f0', borderRadius: '8px', minWidth: '300px' }}>
           <h2>Enter your code</h2>
           <p style={{ fontSize: '0.875rem', color: '#64748b' }}>We sent a 6-digit code to <strong>{email}</strong></p>
-          <input type="text" inputMode="numeric" placeholder="123456" value={code} onChange={(e) => setCode(e.target.value)} maxLength={6} required style={{ padding: '10px', border: '1px solid #ddd', borderRadius: '4px', letterSpacing: '0.3em', fontSize: '1.25rem', textAlign: 'center' }} />
+          <input type="text" inputMode="numeric" placeholder="Enter your code" value={code} onChange={(e) => setCode(e.target.value)} required style={{ padding: '10px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '1.1rem', textAlign: 'center', width: '100%', boxSizing: 'border-box' }} />
           {error && <p style={{ color: 'crimson', fontSize: '0.875rem' }}>{error}</p>}
           <button type="submit" disabled={loading} style={{ padding: '10px', backgroundColor: '#92400e', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
             {loading ? 'Verifying…' : 'Sign in'}
