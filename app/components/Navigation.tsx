@@ -8,13 +8,11 @@ import styles from './Navigation.module.css';
 
 // Import images
 import TreeIcon from '@/assets/Tree.png';
-import PintBeerIcon from '@/assets/PintBeer.png';
 import TrekIcon from '@/assets/Trek.png';
 import MapIcon from '@/assets/Map.png';
 
 const navItems = [
   { path: '/', label: 'Routes', icon: TreeIcon },
-  { path: '/create', label: 'Create', icon: PintBeerIcon },
   { path: '/my-walks', label: 'My Walks', icon: TrekIcon },
   { path: '/map', label: 'Map', icon: MapIcon },
 ];
