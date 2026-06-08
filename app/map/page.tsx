@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 import "leaflet/dist/leaflet.css";
 
@@ -16,13 +16,26 @@ type RouteRow = {
 };
 
 export default function MapPage() {
+	return (
+		<Suspense fallback={<main style={{ padding: 16 }}>Loading map…</main>}>
+			<MapInner />
+		</Suspense>
+	);
+}
+
+function MapInner() {
 	const router = useRouter();
+	const searchParams = useSearchParams();
+	const focusRouteCode = searchParams.get("route");
 	const containerRef = useRef<HTMLDivElement>(null);
 	const mapRef = useRef<any>(null);
 	const initialisedRef = useRef(false);
+	const gpsWatchRef = useRef<number | null>(null);
+	const userMarkerRef = useRef<any>(null);
 	const [routes, setRoutes] = useState<RouteRow[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	const [gpsError, setGpsError] = useState<string | null>(null);
 
 	useEffect(() => {
 		const supabase = supabaseBrowser();
@@ -56,19 +69,23 @@ export default function MapPage() {
 				.addTo(map);
 
 			const allBounds: InstanceType<typeof L.default.LatLngBounds>[] = [];
+			let focusedRouteBounds: InstanceType<typeof L.default.LatLngBounds> | null = null;
 
 			routes.forEach((route) => {
 				if (!route.geometry_geojson) return;
 
+				const isFocused = focusRouteCode && route.route_code === focusRouteCode;
+
 				const layer = L.default
 					.geoJSON(route.geometry_geojson, {
-						style: { color: "#92400e", weight: 4, opacity: 0.8 },
+						style: { color: isFocused ? "#1d4ed8" : "#92400e", weight: isFocused ? 5 : 4, opacity: 0.8 },
 					})
 					.addTo(map);
 
 				const bounds = layer.getBounds();
 				if (bounds.isValid()) {
 					allBounds.push(bounds);
+					if (isFocused) focusedRouteBounds = bounds;
 
 					// Clickable circle marker at the route centre
 					const center = bounds.getCenter();
@@ -86,8 +103,8 @@ export default function MapPage() {
 					L.default
 						.circleMarker(center, {
 							radius: 8,
-							color: "#92400e",
-							fillColor: "#92400e",
+							color: isFocused ? "#1d4ed8" : "#92400e",
+							fillColor: isFocused ? "#1d4ed8" : "#92400e",
 							fillOpacity: 1,
 							weight: 2,
 						})
@@ -96,21 +113,65 @@ export default function MapPage() {
 				}
 			});
 
-			if (allBounds.length > 0) {
+			// Zoom to focused route or all routes
+			if (focusedRouteBounds) {
+				map.fitBounds(focusedRouteBounds, { padding: [60, 60], animate: false });
+			} else if (allBounds.length > 0) {
 				const combined = allBounds.reduce((acc, b) => acc.extend(b));
 				map.fitBounds(combined, { padding: [40, 40], animate: false });
+			}
+
+			// GPS tracking — start watching position
+			if (focusRouteCode && navigator.geolocation) {
+				const userIcon = L.default.divIcon({
+					className: "",
+					html: `<div style="
+						width:18px;height:18px;
+						background:#2563eb;
+						border:3px solid #fff;
+						border-radius:50%;
+						box-shadow:0 0 0 3px rgba(37,99,235,0.35);
+					"></div>`,
+					iconSize: [18, 18],
+					iconAnchor: [9, 9],
+				});
+
+				const watchId = navigator.geolocation.watchPosition(
+					(pos) => {
+						if (destroyed) return;
+						const { latitude, longitude } = pos.coords;
+						const latlng = L.default.latLng(latitude, longitude);
+						if (!userMarkerRef.current) {
+							userMarkerRef.current = L.default.marker(latlng, { icon: userIcon, zIndexOffset: 1000 })
+								.addTo(map)
+								.bindPopup("You are here");
+						} else {
+							userMarkerRef.current.setLatLng(latlng);
+						}
+					},
+					(err) => {
+						if (!destroyed) setGpsError(`GPS unavailable: ${err.message}`);
+					},
+					{ enableHighAccuracy: true, maximumAge: 5000 },
+				);
+				gpsWatchRef.current = watchId;
 			}
 		});
 
 		return () => {
 			destroyed = true;
+			if (gpsWatchRef.current !== null) {
+				navigator.geolocation.clearWatch(gpsWatchRef.current);
+				gpsWatchRef.current = null;
+			}
 			if (mapRef.current) {
 				mapRef.current.stop();
 				mapRef.current.remove();
 				mapRef.current = null;
+				initialisedRef.current = false;
 			}
 		};
-	}, [loading, routes, router]);
+	}, [loading, routes, router, focusRouteCode]);
 
 	if (loading)
 		return <main style={{ padding: 16 }}>Loading map…</main>;
@@ -119,10 +180,15 @@ export default function MapPage() {
 
 	return (
 		<main>
+			{gpsError && (
+				<div style={{ padding: "0.5rem 1rem", backgroundColor: "#fef9c3", color: "#854d0e", fontSize: "0.85rem" }}>
+					{gpsError}
+				</div>
+			)}
 			<div
 				ref={containerRef}
 				style={{
-					height: "calc(100dvh - 72px)",
+					height: gpsError ? "calc(100dvh - 72px - 36px)" : "calc(100dvh - 72px)",
 					width: "100%",
 				}}
 			/>
