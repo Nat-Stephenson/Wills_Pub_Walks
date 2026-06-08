@@ -43,9 +43,14 @@ export function RouteMap({ geojson, pubLat, pubLon, pubLabel }: RouteMapProps) {
 					iconAnchor: [18, 36],
 					popupAnchor: [0, -38],
 				});
+				const name = pubLabel ?? "The Pub";
+				const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(name + " pub")}/@${pubLat},${pubLon},17z`;
 				L.default.marker([pubLat, pubLon], { icon: pubIcon })
 					.addTo(map)
-					.bindPopup(`<strong>${pubLabel ?? "The Pub"}</strong><br/>${pubLat.toFixed(5)}, ${pubLon.toFixed(5)}`);
+					.bindPopup(
+						`<strong>${name}</strong>` +
+						`<br/><a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" style="font-size:0.8rem;color:#1d4ed8">📍 Find on Google Maps</a>`
+					);
 			}
 
 			const bounds = layer.getBounds();
