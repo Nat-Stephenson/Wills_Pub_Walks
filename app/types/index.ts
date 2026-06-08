@@ -13,5 +13,9 @@ export type Route = {
 	duration_hours: number | null;
 	difficulty: 1 | 2 | 3 | 4 | 5 | null;
 	is_published: boolean;
+	pub_label: string | null;
+	pub_lat: number | null;
+	pub_lon: number | null;
 	isCompleted?: boolean;
+	isFavourited?: boolean;
 };
