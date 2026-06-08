@@ -66,7 +66,11 @@ export function RouteCard({ route, isCompleted = false, isFavourited = false }: 
           {route.pub_label && (
             <div className={styles.pubInfo}>
               <Image src="/PintBeer.png" alt="" width={16} height={16} />
-              <span className={styles.pubName}>{route.pub_label}</span>
+              {route.pub_website ? (
+                <a href={route.pub_website} target="_blank" rel="noopener noreferrer" className={styles.pubName} style={{ textDecoration: 'underline' }} onClick={e => e.stopPropagation()}>{route.pub_label}</a>
+              ) : (
+                <span className={styles.pubName}>{route.pub_label}</span>
+              )}
               {route.pub_lat != null && route.pub_lon != null && (
                 <span className={styles.pubCoords}>
                   {route.pub_lat.toFixed(4)}, {route.pub_lon.toFixed(4)}
