@@ -104,7 +104,7 @@ export default function RoutePage() {
 	return (
 		<main style={{ maxWidth: 800, margin: "0 auto", padding: "1.5rem 1rem 3rem" }}>
 			<button
-				onClick={() => router.back()}
+				onClick={() => router.push('/')}
 				style={{ background: "none", border: "none", cursor: "pointer", color: "#92400e", fontWeight: 600, padding: "0 0 1rem", fontSize: "0.9rem" }}
 			>
 				← Back

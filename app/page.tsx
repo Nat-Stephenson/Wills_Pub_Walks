@@ -1,61 +1,26 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Image from "next/image";
 import mapIcon from "@/app/assets/Map.png";
 import trekIcon from "@/app/assets/Trek.png";
 import pintIcon from "@/app/assets/PintBeer.png";
-import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { createClient } from "@supabase/supabase-js";
 import { RouteCard } from "@/components/RouteCard";
 import type { Route } from "@/types";
 
-export default function HomePage() {
-	const [routes, setRoutes] = useState<Route[]>([]);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
-	const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
-	const [favouriteIds, setFavouriteIds] = useState<Set<string>>(new Set());
+export default async function HomePage() {
+	const supabase = createClient(
+		process.env.NEXT_PUBLIC_SUPABASE_URL!,
+		process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+	);
 
-	useEffect(() => {
-		const load = async () => {
-			setLoading(true);
-			setError(null);
-			const supabase = supabaseBrowser();
+	const { data: routes, error } = await supabase
+		.from("routes")
+		.select("id, route_code, name, distance_km, duration_hours, story, difficulty, is_published, pub_label, pub_lat, pub_lon, pub_website")
+		.eq("is_published", true)
+		.order("name", { ascending: true });
 
-			const [{ data: { user } }, { data: routeData, error: routeError }] = await Promise.all([
-				supabase.auth.getUser(),
-				supabase
-					.from("routes")
-						.select("id, route_code, name, distance_km, duration_hours, story, difficulty, is_published, pub_label, pub_lat, pub_lon, pub_website")
-					.eq("is_published", true)
-					.order("name", { ascending: true }),
-			]);
-
-			setLoading(false);
-
-			if (routeError) {
-				setError(routeError.message);
-				return;
-			}
-
-			setRoutes((routeData ?? []) as Route[]);
-
-			if (user) {
-
-				const [{ data: completions }, { data: favourites }] = await Promise.all([
-					supabase.from("route_completions").select("route_id").eq("user_id", user.id),
-					supabase.from("route_favourites").select("route_id").eq("user_id", user.id),
-				]);
-				setCompletedIds(new Set((completions ?? []).map((c: { route_id: string }) => c.route_id)));
-				setFavouriteIds(new Set((favourites ?? []).map((f: { route_id: string }) => f.route_id)));
-			}
-		};
-
-		load();
-	}, []);
-
-	if (loading) return <main className="container" style={{ padding: 16 }}>Loading…</main>;
-	if (error) return <main className="container" style={{ padding: 16, color: "crimson" }}>{error}</main>;
+	if (error) {
+		return <main style={{ padding: 16, color: "crimson" }}>{error.message}</main>;
+	}
 
 	return (
 		<main>
@@ -103,12 +68,10 @@ export default function HomePage() {
 					All Routes
 				</h2>
 				<div className="routeGrid">
-					{routes.map((r) => (
+					{(routes ?? []).map((r) => (
 						<RouteCard
 							key={r.id}
-							route={r}
-							isCompleted={completedIds.has(r.id)}
-							isFavourited={favouriteIds.has(r.id)}
+							route={r as Route}
 						/>
 					))}
 				</div>
