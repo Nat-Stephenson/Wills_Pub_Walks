@@ -34,6 +34,9 @@
 
 .navItemActive {
   color: #92400e;
+  font-weight: 700;
+  background-color: #fdf3e7;
+  border-radius: 0.5rem;
 }
 
 .navIcon {
