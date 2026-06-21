@@ -47,6 +47,23 @@ function extractCoords(geojson: any): [number, number][] {
 	return pairs;
 }
 
+/** Returns the first [lat, lng] coordinate from any supported GeoJSON geometry. */
+function extractStartCoord(geojson: any): [number, number] | null {
+	if (!geojson) return null;
+	const fromCoords = (coords: number[][]): [number, number] | null =>
+		coords.length > 0 ? [coords[0][1], coords[0][0]] : null;
+	if (geojson.type === "LineString") return fromCoords(geojson.coordinates);
+	if (geojson.type === "MultiLineString") return fromCoords(geojson.coordinates[0] ?? []);
+	if (geojson.type === "Feature") return extractStartCoord(geojson.geometry);
+	if (geojson.type === "FeatureCollection") {
+		for (const f of geojson.features ?? []) {
+			const c = extractStartCoord(f);
+			if (c) return c;
+		}
+	}
+	return null;
+}
+
 function toRad(d: number) { return (d * Math.PI) / 180; }
 function toDeg(r: number) { return (r * 180) / Math.PI; }
 
@@ -220,24 +237,25 @@ function MapInner() {
 							);
 
 						L.default.marker(center, { icon: routeIcon }).addTo(map).bindPopup(popup);
-					}
-				}
 
-				// Pub marker — shown for every route that has pub coordinates
-				if (route.pub_lat != null && route.pub_lon != null) {
-					const pubName = route.pub_label ?? "The Pub";
-					const mapsSearchUrl = `https://www.google.com/maps/search/${encodeURIComponent(pubName + " pub")}/@${route.pub_lat},${route.pub_lon},17z`;
-					const pubPopupContent =
-						`<strong>${route.pub_website
-							? `<a href="${route.pub_website}" target="_blank" rel="noopener noreferrer" style="color:#92400e">${pubName}</a>`
-							: pubName
-						}</strong>` +
-						`<br/><small style="color:#555">${route.name}</small>` +
-						`<br/><a href="${mapsSearchUrl}" target="_blank" rel="noopener noreferrer" style="font-size:0.8rem;color:#1d4ed8">📍 Find on Google Maps</a>`;
-					L.default
-						.marker([route.pub_lat, route.pub_lon], { icon: pubIcon })
-						.addTo(map)
-						.bindPopup(pubPopupContent);
+						// Pub / start marker — derived from the first geometry coordinate (accurate)
+						const startCoord = extractStartCoord(route.geometry_geojson);
+						if (startCoord) {
+							const pubName = route.pub_label ?? "The Pub";
+							const mapsSearchUrl = `https://www.google.com/maps/search/${encodeURIComponent(pubName + " pub")}/@${startCoord[0]},${startCoord[1]},17z`;
+							const pubPopupContent =
+								`<strong>${route.pub_website
+									? `<a href="${route.pub_website}" target="_blank" rel="noopener noreferrer" style="color:#92400e">${pubName}</a>`
+									: pubName
+								}</strong>` +
+								`<br/><small style="color:#555">${route.name} — Start &amp; end</small>` +
+								`<br/><a href="${mapsSearchUrl}" target="_blank" rel="noopener noreferrer" style="font-size:0.8rem;color:#1d4ed8">📍 Find on Google Maps</a>`;
+							L.default
+								.marker(startCoord, { icon: pubIcon })
+								.addTo(map)
+								.bindPopup(pubPopupContent);
+						}
+					}
 				}
 			});
 

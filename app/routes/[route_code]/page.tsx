@@ -201,9 +201,8 @@ export default function RoutePage() {
 			{route.geometry_geojson ? (
 				<RouteMap
 					geojson={route.geometry_geojson}
-					pubLat={route.pub_lat}
-					pubLon={route.pub_lon}
 					pubLabel={route.pub_label}
+					pubWebsite={route.pub_website}
 				/>
 			) : (
 				<p style={{ color: "#94a3b8" }}>No map geometry saved for this route.</p>

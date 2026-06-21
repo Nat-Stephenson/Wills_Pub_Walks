@@ -7,9 +7,27 @@ interface RouteMapProps {
 	pubLat?: number | null;
 	pubLon?: number | null;
 	pubLabel?: string | null;
+	pubWebsite?: string | null;
 }
 
-export function RouteMap({ geojson, pubLat, pubLon, pubLabel }: RouteMapProps) {
+/** Returns the first [lat, lng] coordinate from any supported GeoJSON geometry. */
+function extractStartCoord(geojson: any): [number, number] | null {
+	if (!geojson) return null;
+	const fromCoords = (coords: number[][]): [number, number] | null =>
+		coords.length > 0 ? [coords[0][1], coords[0][0]] : null;
+	if (geojson.type === "LineString") return fromCoords(geojson.coordinates);
+	if (geojson.type === "MultiLineString") return fromCoords(geojson.coordinates[0] ?? []);
+	if (geojson.type === "Feature") return extractStartCoord(geojson.geometry);
+	if (geojson.type === "FeatureCollection") {
+		for (const f of geojson.features ?? []) {
+			const c = extractStartCoord(f);
+			if (c) return c;
+		}
+	}
+	return null;
+}
+
+export function RouteMap({ geojson, pubLabel, pubWebsite }: RouteMapProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const mapRef = useRef<any>(null);
 	const initialisedRef = useRef(false);
@@ -35,8 +53,9 @@ export function RouteMap({ geojson, pubLat, pubLon, pubLabel }: RouteMapProps) {
 				style: { color: "#2563eb", weight: 5 },
 			}).addTo(map);
 
-			// Pub marker using PintBeer.png
-			if (pubLat != null && pubLon != null) {
+			// Start / pub marker — derived from the first route coordinate (accurate)
+			const startCoord = extractStartCoord(geojson);
+			if (startCoord) {
 				const pubIcon = L.default.icon({
 					iconUrl: "/PintBeer.png",
 					iconSize: [36, 36],
@@ -44,11 +63,14 @@ export function RouteMap({ geojson, pubLat, pubLon, pubLabel }: RouteMapProps) {
 					popupAnchor: [0, -38],
 				});
 				const name = pubLabel ?? "The Pub";
-				const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(name + " pub")}/@${pubLat},${pubLon},17z`;
-				L.default.marker([pubLat, pubLon], { icon: pubIcon })
+				const nameHtml = pubWebsite
+					? `<a href="${pubWebsite}" target="_blank" rel="noopener noreferrer" style="color:#92400e;font-weight:700;">${name}</a>`
+					: `<strong>${name}</strong>`;
+				const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(name + " pub")}/@${startCoord[0]},${startCoord[1]},17z`;
+				L.default.marker(startCoord, { icon: pubIcon })
 					.addTo(map)
 					.bindPopup(
-						`<strong>${name}</strong>` +
+						`${nameHtml}<br/><small style="color:#555">Start &amp; end of walk</small>` +
 						`<br/><a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" style="font-size:0.8rem;color:#1d4ed8">📍 Find on Google Maps</a>`
 					);
 			}
@@ -66,7 +88,7 @@ export function RouteMap({ geojson, pubLat, pubLon, pubLabel }: RouteMapProps) {
 				mapRef.current = null;
 			}
 		};
-	}, [geojson, pubLat, pubLon, pubLabel]);
+	}, [geojson, pubLabel, pubWebsite]);
 
 	return (
 		<div

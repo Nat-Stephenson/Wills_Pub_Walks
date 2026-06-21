@@ -30,9 +30,22 @@ function bboxFromCoords(coords) {
   return [minLon, minLat, maxLon, maxLat];
 }
 
-async function orsDirectionsGeojson(coordinates) {
+function haversineMetres([lon1, lat1], [lon2, lat2]) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Radii to try in sequence. Start tight to avoid stray snapping; fall back
+// to larger values for mountain/moorland/coastal routes with sparse OSM data.
+const SNAP_RADII_FALLBACK = [350, 500, 750, 1000];
+
+async function orsDirectionsGeojson(coordinates, radius) {
   const url = "https://api.openrouteservice.org/v2/directions/foot-hiking/geojson";
-  const radiuses = new Array(coordinates.length).fill(1000); // metres
+  const radiuses = new Array(coordinates.length).fill(radius);
 
   for (let attempt = 1; attempt <= MAX_RETRIES_429; attempt++) {
     const res = await fetch(url, {
@@ -45,6 +58,7 @@ async function orsDirectionsGeojson(coordinates) {
         coordinates,
         radiuses,
         instructions: false,
+        continue_straight: false,
       }),
     });
 
@@ -54,6 +68,15 @@ async function orsDirectionsGeojson(coordinates) {
       );
       await new Promise((r) => setTimeout(r, RATE_LIMIT_WAIT_MS));
       continue;
+    }
+
+    // 404 with code 2010 = waypoint out of range — let caller try next radius
+    if (res.status === 404) {
+      const body = await res.json().catch(() => ({}));
+      if (body?.error?.code === 2010) {
+        throw { isSnapError: true, body };
+      }
+      throw new Error(`ORS 404: ${JSON.stringify(body)}`);
     }
 
     if (!res.ok) {
@@ -67,15 +90,51 @@ async function orsDirectionsGeojson(coordinates) {
   throw new Error("ORS 429: rate limit did not clear after retries");
 }
 
-async function main() {
-  const { data: routes, error: routesErr } = await sb
-    .from("routes")
-    .select("id, route_code, name")
-    .is("geometry_geojson", null);
+async function orsDirectionsWithFallback(coordinates) {
+  for (const radius of SNAP_RADII_FALLBACK) {
+    try {
+      const result = await orsDirectionsGeojson(coordinates, radius);
+      if (radius > SNAP_RADII_FALLBACK[0]) {
+        console.log(`  Succeeded with fallback radius ${radius}m`);
+      }
+      return result;
+    } catch (err) {
+      if (err?.isSnapError) {
+        console.log(`  Snap failed at ${radius}m, trying next…`);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error(`ORS snap failed at all radii: ${SNAP_RADII_FALLBACK.join("m, ")}m`);
+}
 
+const FORCE_ALL = process.argv.includes("--force");
+// --codes 18,19,21  — only regenerate specific route codes
+const ONLY_CODES = (() => {
+  const idx = process.argv.indexOf("--codes");
+  if (idx === -1) return null;
+  return process.argv[idx + 1]?.split(",").map((s) => s.trim()) ?? null;
+})();
+
+async function main() {
+  let query = sb.from("routes").select("id, route_code, name");
+  if (!FORCE_ALL && !ONLY_CODES) query = query.is("geometry_geojson", null);
+
+  const { data: allRoutes, error: routesErr } = await query;
   if (routesErr) throw routesErr;
 
-  console.log(`Routes missing geometry: ${routes.length}`);
+  const routes = ONLY_CODES
+    ? allRoutes.filter((r) => ONLY_CODES.includes(String(r.route_code)))
+    : allRoutes;
+
+  console.log(
+    ONLY_CODES
+      ? `Regenerating ${routes.length} specified route(s)`
+      : FORCE_ALL
+      ? `Regenerating all routes: ${routes.length}`
+      : `Routes missing geometry: ${routes.length}`
+  );
 
   for (const r of routes) {
     console.log(`\nGenerating ${r.route_code}: ${r.name}`);
@@ -97,9 +156,18 @@ async function main() {
 
     const coordinates = wps.map((w) => [Number(w.lon), Number(w.lat)]);
 
+    // Close the loop: add the first waypoint at the end if not already there
+    const first = coordinates[0];
+    const last = coordinates[coordinates.length - 1];
+    const distFirstLastM = haversineMetres(first, last);
+    if (distFirstLastM > 50) {
+      coordinates.push([first[0], first[1]]);
+      console.log(`  Closing loop: appended start waypoint at end (was ${Math.round(distFirstLastM)}m apart)`);
+    }
+
     let geojson;
     try {
-      geojson = await orsDirectionsGeojson(coordinates);
+      geojson = await orsDirectionsWithFallback(coordinates);
     } catch (e) {
       console.log(`  ORS failed: ${e.message}`);
       continue;
@@ -111,11 +179,15 @@ async function main() {
       continue;
     }
 
+    // Save only the clean LineString as a single GeoJSON Feature.
+    // Storing the full ORS FeatureCollection causes Leaflet to render
+    // metadata/extra features as stray lines on the map.
+    const cleanGeojson = { type: "Feature", geometry: line };
     const bbox = bboxFromCoords(line.coordinates);
 
     const { error: updErr } = await sb
       .from("routes")
-      .update({ geometry_geojson: geojson, geometry_bbox: bbox })
+      .update({ geometry_geojson: cleanGeojson, geometry_bbox: bbox })
       .eq("id", r.id);
 
     if (updErr) {
