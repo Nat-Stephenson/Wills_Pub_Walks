@@ -26,7 +26,6 @@ export const metadata: Metadata = {
     icon: '/favicon.ico',
     apple: '/icon-192.png',
   },
-  manifest: '/manifest.json',
   robots: {
     index: true,
     follow: true,
