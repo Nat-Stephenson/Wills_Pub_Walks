@@ -4,6 +4,7 @@ import trekIcon from "@/app/assets/Trek.png";
 import pintIcon from "@/app/assets/PintBeer.png";
 import { createClient } from "@supabase/supabase-js";
 import { RouteCard } from "@/components/RouteCard";
+import { RouteFilter } from "@/components/RouteFilter";
 import type { Route } from "@/types";
 
 export default async function HomePage() {
@@ -14,7 +15,7 @@ export default async function HomePage() {
 
 	const { data: routes, error } = await supabase
 		.from("routes")
-		.select("id, route_code, name, distance_km, duration_hours, story, difficulty, is_published, pub_label, pub_lat, pub_lon, pub_website")
+		.select("id, route_code, name, distance_km, duration_minutes, story, difficulty, is_published, pub_label, pub_lat, pub_lon, pub_postcode, route_type, walk_type, region")
 		.eq("is_published", true)
 		.order("name", { ascending: true });
 
@@ -67,14 +68,7 @@ export default async function HomePage() {
 				<h2 style={{ margin: "0 0 1.25rem", fontSize: "1.25rem", fontWeight: 700, color: "#1e293b" }}>
 					All Routes
 				</h2>
-				<div className="routeGrid">
-					{(routes ?? []).map((r) => (
-						<RouteCard
-							key={r.id}
-							route={r as Route}
-						/>
-					))}
-				</div>
+				<RouteFilter routes={(routes ?? []) as Route[]} />
 			</div>
 		</main>
 	);
