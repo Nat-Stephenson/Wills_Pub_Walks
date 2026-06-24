@@ -11,12 +11,11 @@ type RouteRow = {
 	name: string;
 	geometry_geojson: any | null;
 	distance_km: number | null;
-	duration_hours: number | null;
+	duration_minutes: number | null;
 	difficulty: number | null;
 	pub_label: string | null;
 	pub_lat: number | null;
 	pub_lon: number | null;
-	pub_website: string | null;
 };
 
 type NavState = {
@@ -62,6 +61,24 @@ function extractStartCoord(geojson: any): [number, number] | null {
 		}
 	}
 	return null;
+}
+
+/** Appends the first coordinate of a LineString to close the loop visually if within 500 m. */
+function closeLoop(geojson: any): any {
+	if (!geojson) return geojson;
+	if (geojson.type === "Feature") return { ...geojson, geometry: closeLoop(geojson.geometry) };
+	if (geojson.type === "LineString") {
+		const coords: number[][] = geojson.coordinates;
+		if (coords.length < 2) return geojson;
+		const first = coords[0];
+		const last = coords[coords.length - 1];
+		const R = 6371000, toR = (d: number) => (d * Math.PI) / 180;
+		const dLat = toR(last[1] - first[1]), dLon = toR(last[0] - first[0]);
+		const a = Math.sin(dLat / 2) ** 2 + Math.cos(toR(first[1])) * Math.cos(toR(last[1])) * Math.sin(dLon / 2) ** 2;
+		const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+		if (dist <= 500) return { ...geojson, coordinates: [...coords, first] };
+	}
+	return geojson;
 }
 
 function toRad(d: number) { return (d * Math.PI) / 180; }
@@ -145,6 +162,7 @@ function MapInner() {
 	const userMarkerRef = useRef<any>(null);
 	const routeCoordsRef = useRef<[number, number][]>([]);
 	const [routes, setRoutes] = useState<RouteRow[]>([]);
+		const [focusedWaypoints, setFocusedWaypoints] = useState<{ seq: number; lat: number; lon: number; label?: string | null }[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [gpsError, setGpsError] = useState<string | null>(null);
@@ -152,16 +170,29 @@ function MapInner() {
 
 	useEffect(() => {
 		const supabase = supabaseBrowser();
-		supabase
-			.from("routes")
-			.select("id, route_code, name, geometry_geojson, distance_km, duration_hours, difficulty, pub_label, pub_lat, pub_lon, pub_website")
-			.eq("is_published", true)
-			.then(({ data, error }) => {
-				if (error) setError(error.message);
-				else setRoutes((data ?? []) as RouteRow[]);
-				setLoading(false);
-			});
-	}, []);
+		const load = async () => {
+			const { data, error } = await supabase
+				.from("routes")
+				.select("id, route_code, name, geometry_geojson, distance_km, duration_minutes, difficulty, pub_label, pub_lat, pub_lon")
+				.eq("is_published", true);
+			if (error) { setError(error.message); setLoading(false); return; }
+			const typedRoutes = (data ?? []) as RouteRow[];
+			setRoutes(typedRoutes);
+			if (focusRouteCode) {
+				const focused = typedRoutes.find(r => r.route_code === focusRouteCode);
+				if (focused) {
+					const { data: wps } = await supabase
+						.from("route_waypoints")
+						.select("seq, lat, lon, label")
+						.eq("route_id", focused.id)
+						.order("seq", { ascending: true });
+					setFocusedWaypoints((wps ?? []) as { seq: number; lat: number; lon: number }[]);
+				}
+			}
+			setLoading(false);
+		};
+		load();
+	}, [focusRouteCode]);
 
 	useEffect(() => {
 		if (loading || initialisedRef.current || !containerRef.current) return;
@@ -213,7 +244,7 @@ function MapInner() {
 				// Draw route line if geometry exists
 				if (route.geometry_geojson) {
 					const layer = L.default
-						.geoJSON(route.geometry_geojson, {
+						.geoJSON(closeLoop(route.geometry_geojson), {
 							style: { color: isFocused ? "#1d4ed8" : "#92400e", weight: isFocused ? 6 : 4, opacity: 0.9 },
 						})
 						.addTo(map);
@@ -231,7 +262,7 @@ function MapInner() {
 							.setContent(
 								`<strong>${route.name}</strong><br/>` +
 									(route.distance_km ? `📏 ${route.distance_km} km&nbsp;&nbsp;` : "") +
-									(route.duration_hours ? `⏱️ ${route.duration_hours} hrs&nbsp;&nbsp;` : "") +
+									(route.duration_minutes ? `⏱️ ${route.duration_minutes} mins&nbsp;&nbsp;` : "") +
 									(difficultyLabel ? `🏔️ ${difficultyLabel}` : "") +
 									`<br/><a href="/routes/${route.route_code}" style="color:#92400e;font-weight:600;">View route →</a>`,
 							);
@@ -244,11 +275,8 @@ function MapInner() {
 							const pubName = route.pub_label ?? "The Pub";
 							const mapsSearchUrl = `https://www.google.com/maps/search/${encodeURIComponent(pubName + " pub")}/@${startCoord[0]},${startCoord[1]},17z`;
 							const pubPopupContent =
-								`<strong>${route.pub_website
-									? `<a href="${route.pub_website}" target="_blank" rel="noopener noreferrer" style="color:#92400e">${pubName}</a>`
-									: pubName
-								}</strong>` +
-								`<br/><small style="color:#555">${route.name} — Start &amp; end</small>` +
+								`<strong>${pubName}</strong>` +
+								`<br/><small style="color:#555">Start &amp; end point</small>` +
 								`<br/><a href="${mapsSearchUrl}" target="_blank" rel="noopener noreferrer" style="font-size:0.8rem;color:#1d4ed8">📍 Find on Google Maps</a>`;
 							L.default
 								.marker(startCoord, { icon: pubIcon })
@@ -258,6 +286,23 @@ function MapInner() {
 					}
 				}
 			});
+
+if (focusRouteCode && focusedWaypoints.length > 0) {
+const intermediate = focusedWaypoints.slice(1);
+intermediate.forEach((wp, i) => {
+const n = i + 1;
+const wpIcon = L.default.divIcon({
+className: "",
+html: `<div style="width:24px;height:24px;background:#4e7a3a;border:2px solid #fff;border-radius:50%;text-align:center;line-height:20px;font-size:11px;font-weight:700;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.4);">${n}</div>`,
+iconSize: [24, 24],
+iconAnchor: [12, 12],
+popupAnchor: [0, -14],
+});
+L.default.marker([Number(wp.lat), Number(wp.lon)], { icon: wpIcon })
+.addTo(map)
+.bindPopup(`<strong>Waypoint ${n}</strong>${wp.label ? `<br/>${wp.label}` : ""}`);
+});
+}
 
 			// Zoom to focused route or all routes
 			if (focusedRouteBounds) {
@@ -326,7 +371,7 @@ function MapInner() {
 				initialisedRef.current = false;
 			}
 		};
-	}, [loading, routes, router, focusRouteCode]);
+	}, [loading, routes, router, focusRouteCode, focusedWaypoints]);
 
 	if (loading)
 		return <main style={{ padding: 16 }}>Loading map…</main>;

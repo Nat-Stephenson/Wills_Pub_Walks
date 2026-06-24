@@ -33,12 +33,12 @@ export default function MyWalksPage() {
 			const [{ data: completions, error: cErr }, { data: favourites, error: fErr }] = await Promise.all([
 				supabase
 					.from("route_completions")
-					.select("routes ( id, route_code, name, distance_km, duration_hours, story, difficulty, is_published )")
+					.select("routes ( id, route_code, name, distance_km, duration_minutes, story, difficulty, is_published, pub_label, pub_postcode )")
 					.eq("user_id", user.id)
 					.order("completed_at", { ascending: false }),
 				supabase
 					.from("route_favourites")
-					.select("routes ( id, route_code, name, distance_km, duration_hours, story, difficulty, is_published )")
+.select("routes ( id, route_code, name, distance_km, duration_minutes, story, difficulty, is_published, pub_label, pub_postcode )")
 					.eq("user_id", user.id),
 			]);
 

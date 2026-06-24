@@ -13,12 +13,12 @@ type RouteRow = {
 	story: string | null;
 	safety_note: string | null;
 	distance_km: number | null;
-	duration_hours: number | null;
+	duration_minutes: number | null;
 	difficulty: number | null;
 	pub_label: string | null;
 	pub_lat: number | null;
 	pub_lon: number | null;
-	pub_website: string | null;
+	pub_postcode: string | null;
 };
 
 export default function RoutePage() {
@@ -34,6 +34,7 @@ export default function RoutePage() {
 	const [isFavourited, setIsFavourited] = useState(false);
 	const [actionLoading, setActionLoading] = useState(false);
 	const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+	const [waypoints, setWaypoints] = useState<{ seq: number; lat: number; lon: number; label: string | null }[]>([]);
 
 	useEffect(() => {
 		const load = async () => {
@@ -44,14 +45,21 @@ export default function RoutePage() {
 			const [{ data }, { data: { user } }] = await Promise.all([
 				supabase
 					.from("routes")
-					.select("id, route_code, name, geometry_geojson, story, safety_note, distance_km, duration_hours, difficulty, pub_label, pub_lat, pub_lon, pub_website")
+					.select("id, route_code, name, geometry_geojson, story, safety_note, distance_km, duration_minutes, difficulty, pub_label, pub_lat, pub_lon, pub_postcode")
 					.eq("route_code", routeCode)
 					.maybeSingle(),
 				supabase.auth.getUser(),
 			]);
 
-			setLoading(false);
+			// Fetch waypoints in parallel once we have the route id
+			const wpsPromise = data?.id
+			? supabase.from("route_waypoints").select("seq, lat, lon, label").eq("route_id", data.id).order("seq", { ascending: true })
+			: Promise.resolve({ data: [] });
+
+			const [{ data: wps }] = await Promise.all([wpsPromise]);
+			setWaypoints((wps ?? []) as { seq: number; lat: number; lon: number; label: string | null }[]);
 			setRoute((data ?? null) as RouteRow | null);
+			setLoading(false);
 
 			if (user && data) {
 				setUserId(user.id);
@@ -114,7 +122,7 @@ export default function RoutePage() {
 
 			<div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
 				{route.distance_km != null && <span style={{ fontSize: "0.9rem", color: "#475569" }}>📏 {route.distance_km} km</span>}
-				{route.duration_hours != null && <span style={{ fontSize: "0.9rem", color: "#475569" }}>⏱️ {route.duration_hours} hrs</span>}
+				{route.duration_minutes != null && <span style={{ fontSize: "0.9rem", color: "#475569" }}>⏱️ {route.duration_minutes} mins</span>}
 				{difficultyLabel && <span style={{ fontSize: "0.9rem", color: "#475569" }}>🏔 {difficultyLabel}</span>}
 			</div>
 
@@ -177,15 +185,18 @@ export default function RoutePage() {
 					{/* eslint-disable-next-line @next/next/no-img-element */}
 					<img src="/PintBeer.png" alt="" width={28} height={28} />
 					<div>
-						{route.pub_website ? (
-							<a href={route.pub_website} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 700, color: "#92400e", textDecoration: "underline" }}>{route.pub_label}</a>
+						{route.pub_postcode ? (
+							<a
+								href={`https://www.google.com/maps/search/${encodeURIComponent((route.pub_label ?? "") + " " + route.pub_postcode)}`}
+								target="_blank"
+								rel="noopener noreferrer"
+								style={{ fontWeight: 700, color: "#92400e", textDecoration: "underline" }}
+							>
+								{route.pub_label}
+								<span style={{ marginLeft: "0.5rem", fontSize: "0.8rem", fontWeight: 400, color: "#78350f" }}>{route.pub_postcode}</span>
+							</a>
 						) : (
 							<span style={{ fontWeight: 700, color: "#92400e" }}>{route.pub_label}</span>
-						)}
-						{route.pub_lat != null && route.pub_lon != null && (
-							<span style={{ marginLeft: "0.75rem", fontSize: "0.8rem", color: "#78350f" }}>
-								{route.pub_lat.toFixed(5)}, {route.pub_lon.toFixed(5)}
-							</span>
 						)}
 					</div>
 				</div>
@@ -198,11 +209,16 @@ export default function RoutePage() {
 				</section>
 			)}
 
+			{/* DEBUG — remove once waypoints confirmed working */}
+			<p style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Waypoints loaded: {waypoints.length} (showing {Math.max(0, waypoints.length - 1)} markers)</p>
+
 			{route.geometry_geojson ? (
 				<RouteMap
 					geojson={route.geometry_geojson}
+					pubLat={route.pub_lat}
+					pubLon={route.pub_lon}
 					pubLabel={route.pub_label}
-					pubWebsite={route.pub_website}
+					waypoints={waypoints}
 				/>
 			) : (
 				<p style={{ color: "#94a3b8" }}>No map geometry saved for this route.</p>
