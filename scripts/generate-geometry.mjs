@@ -2,11 +2,11 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const orsKey = process.env.OPENROUTESERVICE_API_KEY;
+const mapboxToken = process.env.MAPBOX_ACCESS_TOKEN;
 
-if (!supabaseUrl || !supabaseServiceKey || !orsKey) {
+if (!supabaseUrl || !supabaseServiceKey || !mapboxToken) {
   console.error(
-    "Missing env vars. Need NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENROUTESERVICE_API_KEY"
+    "Missing env vars. Need NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, MAPBOX_ACCESS_TOKEN"
   );
   process.exit(1);
 }
@@ -15,9 +15,7 @@ const sb = createClient(supabaseUrl, supabaseServiceKey, {
   auth: { persistSession: false },
 });
 
-const PER_ROUTE_DELAY_MS = 4000;     // 4 seconds between routes
-const RATE_LIMIT_WAIT_MS = 300000;   // 5 minutes when you hit 429
-const MAX_RETRIES_429 = 12;          // up to 1 hour waiting on a single route
+const PER_ROUTE_DELAY_MS = 300; // Mapbox free tier is generous
 
 function bboxFromCoords(coords) {
   let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
@@ -39,79 +37,32 @@ function haversineMetres([lon1, lat1], [lon2, lat2]) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Radii to try in sequence. Kept tight so waypoints snap to footpaths/tracks
-// rather than distant roads. Larger values risk snapping to a road instead of
-// a nearby path, even within the foot-hiking network.
-const SNAP_RADII_FALLBACK = [100, 200, 350, 500];
+/**
+ * Call the Mapbox Directions API (walking profile) and return the LineString geometry.
+ * Coordinates are [lon, lat] pairs. Max 25 waypoints per request.
+ */
+async function mapboxDirections(coordinates) {
+  const coordStr = coordinates.map(([lon, lat]) => `${lon},${lat}`).join(";");
+  const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${coordStr}?geometries=geojson&overview=full&steps=false&access_token=${mapboxToken}`;
 
-async function orsDirectionsGeojson(coordinates, radius) {
-  const url = "https://api.openrouteservice.org/v2/directions/foot-hiking/geojson";
-  const radiuses = new Array(coordinates.length).fill(radius);
+  const res = await fetch(url);
 
-  for (let attempt = 1; attempt <= MAX_RETRIES_429; attempt++) {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        authorization: orsKey,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        coordinates,
-        radiuses,
-        instructions: false,
-        continue_straight: false,
-      }),
-    });
-
-    if (res.status === 429) {
-      console.log(
-        `  ORS 429 rate limit. Waiting ${RATE_LIMIT_WAIT_MS / 1000}s (attempt ${attempt}/${MAX_RETRIES_429})...`
-      );
-      await new Promise((r) => setTimeout(r, RATE_LIMIT_WAIT_MS));
-      continue;
-    }
-
-    // 404 with code 2010 = waypoint out of range — let caller try next radius
-    if (res.status === 404) {
-      const body = await res.json().catch(() => ({}));
-      if (body?.error?.code === 2010) {
-        throw { isSnapError: true, body };
-      }
-      throw new Error(`ORS 404: ${JSON.stringify(body)}`);
-    }
-
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`ORS ${res.status}: ${text}`);
-    }
-
-    return await res.json();
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Mapbox ${res.status}: ${text}`);
   }
 
-  throw new Error("ORS 429: rate limit did not clear after retries");
-}
+  const json = await res.json();
 
-async function orsDirectionsWithFallback(coordinates) {
-  for (const radius of SNAP_RADII_FALLBACK) {
-    try {
-      const result = await orsDirectionsGeojson(coordinates, radius);
-      if (radius > SNAP_RADII_FALLBACK[0]) {
-        console.log(`  Succeeded with fallback radius ${radius}m`);
-      }
-      return result;
-    } catch (err) {
-      if (err?.isSnapError) {
-        console.log(`  Snap failed at ${radius}m, trying next…`);
-        continue;
-      }
-      throw err;
-    }
+  if (!json.routes || json.routes.length === 0) {
+    throw new Error(`Mapbox returned no routes: ${JSON.stringify(json)}`);
   }
-  throw new Error(`ORS snap failed at all radii: ${SNAP_RADII_FALLBACK.join("m, ")}m`);
+
+  // routes[0].geometry is already a GeoJSON LineString
+  return json.routes[0].geometry;
 }
 
 const FORCE_ALL = process.argv.includes("--force");
-// --codes 18,19,21  — only regenerate specific route codes
 const ONLY_CODES = (() => {
   const idx = process.argv.indexOf("--codes");
   if (idx === -1) return null;
@@ -161,52 +112,30 @@ async function main() {
     const last = coordinates[coordinates.length - 1];
     const distFirstLastM = haversineMetres(first, last);
 
-    // If the last waypoint is the same as the first (a loop route), strip it
-    // before sending to ORS. Routing pub→...→pub causes ORS to approach the
-    // pub from two different directions, creating messy overlapping segments
-    // through the village. Instead we route to the penultimate waypoint only
-    // and close the loop ourselves in the geometry afterwards.
-    const isLoop = distFirstLastM <= 50;
-    const coordsToSend = isLoop ? coordinates.slice(0, -1) : coordinates;
-    if (isLoop) {
-      console.log(`  Loop route: stripped duplicate end waypoint — will close geometry after routing`);
-    } else {
-      // Non-loop: append start at end so ORS routes back to the start
+    // Always route back to the pub (start). Mapbox handles pub→...→pub cleanly
+    // via footpaths — no need to strip the duplicate endpoint like ORS required.
+    // If the last waypoint is NOT the pub, append it so the route closes.
+    const coordsToSend = [...coordinates];
+    if (distFirstLastM > 50) {
       coordsToSend.push([first[0], first[1]]);
-      console.log(`  Closing loop: appended start waypoint at end (was ${Math.round(distFirstLastM)}m apart)`);
+      console.log(`  Appended start at end to close loop (last wp was ${Math.round(distFirstLastM)}m from pub)`);
+    } else {
+      console.log(`  Loop route: last waypoint is pub — routing full circle`);
     }
 
-    let geojson;
+    let line;
     try {
-      geojson = await orsDirectionsWithFallback(coordsToSend);
+      line = await mapboxDirections(coordsToSend);
     } catch (e) {
-      console.log(`  ORS failed: ${e.message}`);
+      console.log(`  Mapbox failed: ${e.message}`);
       continue;
     }
 
-    const line = geojson?.features?.[0]?.geometry;
     if (!line || line.type !== "LineString" || !Array.isArray(line.coordinates)) {
-      console.log("  ORS returned unexpected geometry");
+      console.log("  Mapbox returned unexpected geometry");
       continue;
     }
 
-    // Close the loop by appending the very first geometry coordinate.
-    // For loop routes this draws one clean closing segment from wherever ORS
-    // ended back to the pub, avoiding a second pass through the village.
-    {
-      const geomCoords = line.coordinates;
-      const geomFirst = geomCoords[0];
-      const geomLast = geomCoords[geomCoords.length - 1];
-      const geomGapM = haversineMetres(geomFirst, geomLast);
-      if (geomGapM > 1) {
-        geomCoords.push([geomFirst[0], geomFirst[1]]);
-        console.log(`  Closed geometry loop (gap was ${Math.round(geomGapM)}m)`);
-      }
-    }
-
-    // Save only the clean LineString as a single GeoJSON Feature.
-    // Storing the full ORS FeatureCollection causes Leaflet to render
-    // metadata/extra features as stray lines on the map.
     const cleanGeojson = { type: "Feature", geometry: line };
     const bbox = bboxFromCoords(line.coordinates);
 
