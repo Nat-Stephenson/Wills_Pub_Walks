@@ -39,9 +39,10 @@ function haversineMetres([lon1, lat1], [lon2, lat2]) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Radii to try in sequence. Start tight to avoid stray snapping; fall back
-// to larger values for mountain/moorland/coastal routes with sparse OSM data.
-const SNAP_RADII_FALLBACK = [350, 500, 750, 1000];
+// Radii to try in sequence. Kept tight so waypoints snap to footpaths/tracks
+// rather than distant roads. Larger values risk snapping to a road instead of
+// a nearby path, even within the foot-hiking network.
+const SNAP_RADII_FALLBACK = [100, 200, 350, 500];
 
 async function orsDirectionsGeojson(coordinates, radius) {
   const url = "https://api.openrouteservice.org/v2/directions/foot-hiking/geojson";
@@ -156,18 +157,28 @@ async function main() {
 
     const coordinates = wps.map((w) => [Number(w.lon), Number(w.lat)]);
 
-    // Close the loop: add the first waypoint at the end if not already there
     const first = coordinates[0];
     const last = coordinates[coordinates.length - 1];
     const distFirstLastM = haversineMetres(first, last);
-    if (distFirstLastM > 50) {
-      coordinates.push([first[0], first[1]]);
+
+    // If the last waypoint is the same as the first (a loop route), strip it
+    // before sending to ORS. Routing pub→...→pub causes ORS to approach the
+    // pub from two different directions, creating messy overlapping segments
+    // through the village. Instead we route to the penultimate waypoint only
+    // and close the loop ourselves in the geometry afterwards.
+    const isLoop = distFirstLastM <= 50;
+    const coordsToSend = isLoop ? coordinates.slice(0, -1) : coordinates;
+    if (isLoop) {
+      console.log(`  Loop route: stripped duplicate end waypoint — will close geometry after routing`);
+    } else {
+      // Non-loop: append start at end so ORS routes back to the start
+      coordsToSend.push([first[0], first[1]]);
       console.log(`  Closing loop: appended start waypoint at end (was ${Math.round(distFirstLastM)}m apart)`);
     }
 
     let geojson;
     try {
-      geojson = await orsDirectionsWithFallback(coordinates);
+      geojson = await orsDirectionsWithFallback(coordsToSend);
     } catch (e) {
       console.log(`  ORS failed: ${e.message}`);
       continue;
@@ -177,6 +188,20 @@ async function main() {
     if (!line || line.type !== "LineString" || !Array.isArray(line.coordinates)) {
       console.log("  ORS returned unexpected geometry");
       continue;
+    }
+
+    // Close the loop by appending the very first geometry coordinate.
+    // For loop routes this draws one clean closing segment from wherever ORS
+    // ended back to the pub, avoiding a second pass through the village.
+    {
+      const geomCoords = line.coordinates;
+      const geomFirst = geomCoords[0];
+      const geomLast = geomCoords[geomCoords.length - 1];
+      const geomGapM = haversineMetres(geomFirst, geomLast);
+      if (geomGapM > 1) {
+        geomCoords.push([geomFirst[0], geomFirst[1]]);
+        console.log(`  Closed geometry loop (gap was ${Math.round(geomGapM)}m)`);
+      }
     }
 
     // Save only the clean LineString as a single GeoJSON Feature.
