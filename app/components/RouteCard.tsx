@@ -52,8 +52,8 @@ export function RouteCard({ route, isCompleted = false, isFavourited = false }: 
               {route.distance_km != null && (
                 <span className={styles.stat}>📏 {route.distance_km} km</span>
               )}
-              {route.duration_hours != null && (
-                <span className={styles.stat}>⏱️ {route.duration_hours} hrs</span>
+              {route.duration_minutes != null && (
+                <span className={styles.stat}>⏱️ {route.duration_minutes} mins</span>
               )}
             </div>
             {route.difficulty && (
@@ -68,15 +68,20 @@ export function RouteCard({ route, isCompleted = false, isFavourited = false }: 
       {route.pub_label && (
         <div className={styles.pubInfo}>
           <Image src="/PintBeer.png" alt="" width={16} height={16} />
-          {route.pub_website ? (
-            <a href={route.pub_website} target="_blank" rel="noopener noreferrer" className={styles.pubName} style={{ textDecoration: 'underline' }}>{route.pub_label}</a>
+          {route.pub_postcode ? (
+            <a
+              href={`https://www.google.com/maps/search/${encodeURIComponent((route.pub_label ?? "") + " " + route.pub_postcode)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.pubName}
+              style={{ textDecoration: "underline", color: "inherit" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {route.pub_label}
+              <span style={{ marginLeft: "0.4rem", fontSize: "0.75rem", opacity: 0.7 }}>{route.pub_postcode}</span>
+            </a>
           ) : (
             <span className={styles.pubName}>{route.pub_label}</span>
-          )}
-          {route.pub_lat != null && route.pub_lon != null && (
-            <span className={styles.pubCoords}>
-              {route.pub_lat.toFixed(4)}, {route.pub_lon.toFixed(4)}
-            </span>
           )}
         </div>
       )}

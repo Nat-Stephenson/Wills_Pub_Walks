@@ -7,7 +7,38 @@ interface RouteMapProps {
 	pubLat?: number | null;
 	pubLon?: number | null;
 	pubLabel?: string | null;
-	pubWebsite?: string | null;
+	waypoints?: { seq: number; lat: number; lon: number; label?: string | null }[];
+}
+
+/** Haversine distance in metres between two [lon, lat] points. */
+function haversineMetres([lon1, lat1]: number[], [lon2, lat2]: number[]): number {
+	const R = 6371000;
+	const toRad = (d: number) => (d * Math.PI) / 180;
+	const dLat = toRad(lat2 - lat1);
+	const dLon = toRad(lon2 - lon1);
+	const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+	return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * If the LineString's first and last coordinates are within 500 m of each other,
+ * append the first coordinate to close the loop visually.
+ */
+function closeLoop(geojson: any): any {
+	if (!geojson) return geojson;
+	if (geojson.type === "Feature") {
+		return { ...geojson, geometry: closeLoop(geojson.geometry) };
+	}
+	if (geojson.type === "LineString") {
+		const coords: number[][] = geojson.coordinates;
+		if (coords.length < 2) return geojson;
+		const first = coords[0];
+		const last = coords[coords.length - 1];
+		if (haversineMetres(first, last) <= 500) {
+			return { ...geojson, coordinates: [...coords, first] };
+		}
+	}
+	return geojson;
 }
 
 /** Returns the first [lat, lng] coordinate from any supported GeoJSON geometry. */
@@ -27,7 +58,7 @@ function extractStartCoord(geojson: any): [number, number] | null {
 	return null;
 }
 
-export function RouteMap({ geojson, pubLabel, pubWebsite }: RouteMapProps) {
+export function RouteMap({ geojson, pubLat, pubLon, pubLabel, waypoints = [] }: RouteMapProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const mapRef = useRef<any>(null);
 	const initialisedRef = useRef(false);
@@ -35,11 +66,13 @@ export function RouteMap({ geojson, pubLabel, pubWebsite }: RouteMapProps) {
 	useEffect(() => {
 		if (initialisedRef.current || !containerRef.current) return;
 		initialisedRef.current = true;
-
+		let destroyed = false;
 		const container = containerRef.current;
 
 		Promise.all([import("leaflet"), import("leaflet/dist/leaflet.css" as any)]).then(([L]) => {
-			if (!containerRef.current) return;
+			// Guard against cleanup having run before this Promise resolved
+			if (destroyed || !containerRef.current) return;
+
 			const map = L.default.map(container, { zoomAnimation: false, maxZoom: 19 });
 			mapRef.current = map;
 
@@ -49,13 +82,14 @@ export function RouteMap({ geojson, pubLabel, pubWebsite }: RouteMapProps) {
 				detectRetina: true,
 			}).addTo(map);
 
-			const layer = L.default.geoJSON(geojson, {
+			const layer = L.default.geoJSON(closeLoop(geojson), {
 				style: { color: "#2563eb", weight: 5 },
 			}).addTo(map);
 
-			// Start / pub marker — derived from the first route coordinate (accurate)
-			const startCoord = extractStartCoord(geojson);
-			if (startCoord) {
+			// Pub marker
+			const pubCoord: [number, number] | null =
+				pubLat != null && pubLon != null ? [pubLat, pubLon] : extractStartCoord(geojson);
+			if (pubCoord) {
 				const pubIcon = L.default.icon({
 					iconUrl: "/PintBeer.png",
 					iconSize: [36, 36],
@@ -63,17 +97,30 @@ export function RouteMap({ geojson, pubLabel, pubWebsite }: RouteMapProps) {
 					popupAnchor: [0, -38],
 				});
 				const name = pubLabel ?? "The Pub";
-				const nameHtml = pubWebsite
-					? `<a href="${pubWebsite}" target="_blank" rel="noopener noreferrer" style="color:#92400e;font-weight:700;">${name}</a>`
-					: `<strong>${name}</strong>`;
-				const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(name + " pub")}/@${startCoord[0]},${startCoord[1]},17z`;
-				L.default.marker(startCoord, { icon: pubIcon })
+				const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(name + " pub")}/@${pubCoord[0]},${pubCoord[1]},17z`;
+				L.default.marker(pubCoord, { icon: pubIcon })
 					.addTo(map)
 					.bindPopup(
-						`${nameHtml}<br/><small style="color:#555">Start &amp; end of walk</small>` +
+						`<strong>${name}</strong><br/><small style="color:#555">Start &amp; end point</small>` +
 						`<br/><a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" style="font-size:0.8rem;color:#1d4ed8">📍 Find on Google Maps</a>`
 					);
 			}
+
+			// Numbered waypoint markers — skip first waypoint (pub/start, lowest seq)
+			const intermediate = waypoints.slice(1);
+			intermediate.forEach((wp, i) => {
+				const n = i + 1;
+				const icon = L.default.divIcon({
+					className: "",
+					html: `<div style="width:24px;height:24px;background:#4e7a3a;border:2px solid #fff;border-radius:50%;text-align:center;line-height:20px;font-size:11px;font-weight:700;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.4);">${n}</div>`,
+					iconSize: [24, 24],
+					iconAnchor: [12, 12],
+					popupAnchor: [0, -14],
+				});
+				L.default.marker([Number(wp.lat), Number(wp.lon)], { icon })
+					.addTo(map)
+					.bindPopup(`<strong>Waypoint ${n}</strong>${wp.label ? `<br/>${wp.label}` : ""}`);
+			});
 
 			const bounds = layer.getBounds();
 			if (bounds.isValid()) {
@@ -82,13 +129,15 @@ export function RouteMap({ geojson, pubLabel, pubWebsite }: RouteMapProps) {
 		});
 
 		return () => {
+			destroyed = true;
 			if (mapRef.current) {
 				mapRef.current.stop();
 				mapRef.current.remove();
 				mapRef.current = null;
 			}
+			initialisedRef.current = false;
 		};
-	}, [geojson, pubLabel, pubWebsite]);
+	}, [geojson, pubLat, pubLon, pubLabel, waypoints]);
 
 	return (
 		<div
